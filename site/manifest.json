@@ -1,0 +1,9 @@
+{
+  "name": "Fuel near me",
+  "short_name": "Fuel",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#eef1f3",
+  "theme_color": "#123a52",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

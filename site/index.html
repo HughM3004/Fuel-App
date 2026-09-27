@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fuel near me</title>
+<meta name="theme-color" content="#123a52">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root {
+  --paper: #eef1f3;
+  --surface: #ffffff;
+  --ink: #17252e;
+  --muted: #5f6f79;
+  --line: #d6dde2;
+  --totem: #123a52;
+  --totem-edge: #0c2a3c;
+  --amber: #f4b63f;
+  --green: #2e7d5b;
+  --focus: #1f6fb2;
+  --num: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "Barlow", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0f1a21;
+    --surface: #17252e;
+    --ink: #e7edf0;
+    --muted: #9aabb5;
+    --line: #2a3b46;
+    --totem: #0b2636;
+    --totem-edge: #061822;
+    --green: #5cc294;
+    --focus: #7fb8ea;
+  }
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.45 var(--body);
+  -webkit-text-size-adjust: 100%;
+}
+main { max-width: 640px; margin: 0 auto; padding: 12px 14px 32px; }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* Fuel choice */
+.fuels {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 4px;
+}
+.fuels button {
+  border: 0; background: none; border-radius: 7px; padding: 8px 2px;
+  font-family: var(--num); font-weight: 600; font-size: 15px; line-height: 1.1; cursor: pointer;
+}
+.fuels button small { display: block; font: 500 12px var(--body); color: var(--muted); }
+.fuels button[aria-pressed="true"] { background: var(--totem); color: #fff; }
+.fuels button[aria-pressed="true"] small { color: #b9cad5; }
+
+/* The price sign */
+.totem {
+  margin-top: 12px; background: var(--totem); color: #fff;
+  border-radius: 14px 14px 4px 4px; border-bottom: 8px solid var(--totem-edge);
+  padding: 16px 18px 18px;
+}
+.totem .why { margin: 0; font-size: 14px; color: #b9cad5; }
+.totem .price {
+  display: flex; align-items: baseline; gap: 6px; margin: 2px 0 4px;
+  font-family: var(--num); font-weight: 700; color: var(--amber);
+  font-size: clamp(64px, 22vw, 96px); line-height: 0.95; letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.totem .price span { font-size: 22px; font-weight: 600; color: #b9cad5; letter-spacing: 0; }
+.totem h1 { margin: 0; font: 600 22px/1.2 var(--num); }
+.totem .where { margin: 2px 0 0; color: #cfdbe3; font-size: 15px; }
+.totem .fill { margin: 10px 0 0; font-size: 15px; }
+.totem .fill strong { font-weight: 600; }
+.totem .actions { display: flex; gap: 8px; margin-top: 14px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding: 0 16px; border-radius: 8px; border: 0;
+  font-weight: 600; text-decoration: none; cursor: pointer;
+}
+.btn-go { background: var(--amber); color: #1c1605; }
+.btn-ghost { background: rgba(255,255,255,0.1); color: #fff; }
+.totem.empty .price { color: #b9cad5; font-size: 40px; }
+
+.notice {
+  margin: 10px 0 0; padding: 10px 12px; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--line); font-size: 14px;
+}
+.notice.warn { border-color: var(--amber); }
+
+/* Controls */
+.controls { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.controls label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); flex: 1 1 140px; }
+.controls select, .settings input {
+  margin-top: 3px; min-height: 42px; padding: 0 10px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface); font-size: 16px;
+}
+
+#map {
+  height: 42vh; min-height: 260px; margin-top: 14px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface);
+}
+.tag {
+  background: var(--totem); color: var(--amber); border: 2px solid #fff;
+  border-radius: 6px; font: 700 14px/1 var(--num); padding: 4px 5px;
+  white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,0.35); text-align: center;
+}
+.tag.best { background: var(--green); color: #fff; }
+.me { width: 16px; height: 16px; border-radius: 50%; background: #1f6fb2; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(31,111,178,0.35); }
+
+/* List */
+.list { list-style: none; margin: 14px 0 0; padding: 0; border-top: 1px solid var(--line); }
+.list li {
+  display: grid; grid-template-columns: 76px 1fr auto; gap: 10px; align-items: center;
+  padding: 12px 2px; border-bottom: 1px solid var(--line);
+}
+.list li.picked { background: var(--surface); }
+.list .p { font: 700 30px/1 var(--num); font-variant-numeric: tabular-nums; }
+.list .p.best { color: var(--green); }
+.list .n { font-weight: 600; line-height: 1.25; }
+.list .m { font-size: 14px; color: var(--muted); }
+.list .old { color: #9a6a00; }
+@media (prefers-color-scheme: dark) { .list .old { color: var(--amber); } }
+.list a { color: var(--focus); font-weight: 600; font-size: 15px; text-decoration: none; padding: 10px 4px; }
+
+/* Settings */
+.settings { margin-top: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.settings summary { padding: 12px 14px; font-weight: 600; cursor: pointer; }
+.settings .body { padding: 0 14px 14px; display: grid; gap: 12px; }
+.settings label { display: flex; flex-direction: column; font-size: 14px; color: var(--muted); }
+.settings .row { display: flex; gap: 8px; }
+.settings .row input { flex: 1; }
+.settings .row button { min-height: 42px; margin-top: 3px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper); padding: 0 14px; font-weight: 600; cursor: pointer; }
+.settings p { margin: 0; font-size: 13px; color: var(--muted); }
+
+footer { margin-top: 18px; font-size: 12px; color: var(--muted); }
+footer a { color: inherit; }
+@media (prefers-reduced-motion: no-preference) {
+  .totem { transition: opacity .2s; }
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="fuels" role="group" aria-label="Fuel type">
+    <button data-fuel="E10">Unleaded<small>E10</small></button>
+    <button data-fuel="E5">Super<small>E5</small></button>
+    <button data-fuel="B7_STANDARD">Diesel<small>B7</small></button>
+    <button data-fuel="B7_PREMIUM">Premium<small>diesel</small></button>
+  </div>
+
+  <section class="totem empty" id="totem" aria-live="polite">
+    <p class="why">Loading prices…</p>
+    <div class="price">–</div>
+  </section>
+
+  <div id="notices"></div>
+
+  <div class="controls">
+    <label>Rank by
+      <select id="sort">
+        <option value="value">Cheapest fill-up, counting the detour</option>
+        <option value="price">Lowest pump price</option>
+        <option value="distance">Nearest</option>
+      </select>
+    </label>
+    <label>Within
+      <select id="radius">
+        <option value="3">3 miles</option>
+        <option value="5">5 miles</option>
+        <option value="10">10 miles</option>
+        <option value="15">15 miles</option>
+        <option value="25">25 miles</option>
+      </select>
+    </label>
+  </div>
+
+  <div id="map" role="region" aria-label="Map of nearby stations"></div>
+  <ol class="list" id="list"></ol>
+
+  <details class="settings">
+    <summary>Your car and location</summary>
+    <div class="body">
+      <label>Litres you usually put in
+        <input id="fill" type="number" inputmode="decimal" min="5" max="150" step="1">
+      </label>
+      <label>Your car's miles per gallon
+        <input id="mpg" type="number" inputmode="decimal" min="10" max="120" step="1">
+      </label>
+      <p>These work out whether a cheaper station is worth the extra driving. The detour is estimated from straight-line distance, there and back.</p>
+      <label>Search from a postcode instead
+        <span class="row">
+          <input id="postcode" type="text" autocomplete="postal-code" placeholder="e.g. MK40 2TU">
+          <button id="go-postcode" type="button">Search</button>
+        </span>
+      </label>
+      <label><span class="row"><button id="use-gps" type="button" style="flex:1">Use my current location</button></span></label>
+    </div>
+  </details>
+
+  <footer>
+    <p id="updated"></p>
+    <p>Prices from the government Fuel Finder service, published under the <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/">Open Government Licence</a>. Always check the price on the pump.</p>
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var FUEL_NAMES = { E10: "unleaded", E5: "super unleaded", B7_STANDARD: "diesel", B7_PREMIUM: "premium diesel" };
+  var LITRES_PER_GALLON = 4.546;
+  var ROAD_FACTOR = 1.3;          // roads are longer than straight lines
+  var STALE_HOURS = 3;            // warn if the data file is older than this
+  var OLD_PRICE_DAYS = 7;         // flag individual prices this old
+
+  function load(key, fallback) {
+    try { var v = localStorage.getItem("fuel." + key); return v === null ? fallback : JSON.parse(v); }
+    catch (e) { return fallback; }
+  }
+  function save(key, value) {
+    try { localStorage.setItem("fuel." + key, JSON.stringify(value)); } catch (e) {}
+  }
+
+  var state = {
+    fuel: load("fuel", "E10"),
+    sort: load("sort", "value"),
+    radius: load("radius", 10),
+    fill: load("fill", 40),
+    mpg: load("mpg", 45),
+    origin: null,
+    data: null
+  };
+
+  var el = function (id) { return document.getElementById(id); };
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function money(pence) { return "£" + (pence / 100).toFixed(2); }
+  function miles(d) { return d < 10 ? d.toFixed(1) + " miles" : Math.round(d) + " miles"; }
+  function directions(s) {
+    return "https://www.google.com/maps/dir/?api=1&destination=" + s.lat + "," + s.lon;
+  }
+  function haversine(a, b, c, d) {
+    var R = 3958.8, toR = Math.PI / 180;
+    var dLat = (c - a) * toR, dLon = (d - b) * toR;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(a * toR) * Math.cos(c * toR) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  function ago(iso) {
+    var mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (mins < 2) return "just now";
+    if (mins < 60) return mins + " minutes ago";
+    var h = Math.round(mins / 60);
+    if (h < 48) return h + (h === 1 ? " hour ago" : " hours ago");
+    return Math.round(h / 24) + " days ago";
+  }
+  function shortDate(iso) {
+    return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+
+  // ---------- map ----------
+  var map = L.map("map", { zoomControl: true, attributionControl: true });
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+  var layer = L.layerGroup().addTo(map);
+  var markers = {};
+
+  // ---------- ranking ----------
+  function ranked() {
+    var o = state.origin, fuel = state.fuel, out = [];
+    state.data.stations.forEach(function (s) {
+      var entry = s.p[fuel];
+      if (!entry || s.closed) return;
+      var d = haversine(o.lat, o.lon, s.lat, s.lon);
+      if (d > state.radius) return;
+      var price = entry[0];
+      var detourLitres = (2 * d * ROAD_FACTOR) / state.mpg * LITRES_PER_GALLON;
+      var fillCost = price * state.fill;
+      var detourCost = price * detourLitres;
+      out.push({
+        s: s, d: d, price: price, updated: entry[1],
+        fillCost: fillCost, detourCost: detourCost, total: fillCost + detourCost
+      });
+    });
+    var key = { value: "total", price: "price", distance: "d" }[state.sort];
+    out.sort(function (a, b) { return a[key] - b[key] || a.d - b.d; });
+    return out;
+  }
+
+  // ---------- rendering ----------
+  function renderTotem(rows) {
+    var t = el("totem");
+    if (!rows.length) {
+      t.className = "totem empty";
+      t.innerHTML = '<p class="why">No stations selling ' + esc(FUEL_NAMES[state.fuel]) +
+        " within " + state.radius + ' miles.</p><div class="price">Try a wider radius</div>';
+      return;
+    }
+    var best = rows[0], s = best.s;
+    var nearest = rows.slice().sort(function (a, b) { return a.d - b.d; })[0];
+    var why = {
+      value: "Cheapest fill-up within " + state.radius + " miles",
+      price: "Lowest price within " + state.radius + " miles",
+      distance: "Nearest station"
+    }[state.sort];
+    var saving = "";
+    if (state.sort !== "distance" && nearest !== best) {
+      var diff = nearest.total - best.total;
+      if (diff >= 50) saving = " That is " + money(diff) + " less than the nearest station.";
+      else if (diff > -50) saving = " About the same as the nearest station, so go there if it is easier.";
+    }
+    t.className = "totem";
+    t.innerHTML =
+      '<p class="why">' + esc(why) + "</p>" +
+      '<div class="price">' + best.price.toFixed(1) + "<span>p a litre</span></div>" +
+      "<h1>" + esc(s.name) + "</h1>" +
+      '<p class="where">' + esc([s.addr, s.pc].filter(Boolean).join(" ")) + " · " + miles(best.d) + "</p>" +
+      '<p class="fill"><strong>' + money(best.total) + "</strong> for " + state.fill + " litres, including about " +
+        money(best.detourCost) + " of fuel to get there and back." + esc(saving) + "</p>" +
+      '<div class="actions"><a class="btn btn-go" href="' + directions(s) + '" target="_blank" rel="noopener">Directions</a>' +
+      '<button class="btn btn-ghost" type="button" id="show-best">Show on map</button></div>';
+    el("show-best").onclick = function () { focusStation(s.id); };
+  }
+
+  function renderList(rows) {
+    var bestId = rows.length ? rows[0].s.id : null;
+    var cutoff = Date.now() - OLD_PRICE_DAYS * 864e5;
+    el("list").innerHTML = rows.map(function (r) {
+      var s = r.s;
+      var old = r.updated && new Date(r.updated).getTime() < cutoff
+        ? ' <span class="old">· price from ' + esc(shortDate(r.updated)) + "</span>" : "";
+      var brand = s.brand && s.name.toLowerCase().indexOf(s.brand.toLowerCase()) === -1 ? s.brand + " · " : "";
+      return '<li id="st-' + esc(s.id) + '">' +
+        '<div class="p' + (s.id === bestId ? " best" : "") + '">' + r.price.toFixed(1) + "</div>" +
+        '<div><div class="n">' + esc(s.name) + (s.mw ? " (motorway)" : "") + "</div>" +
+        '<div class="m">' + esc(brand) + miles(r.d) + " · " + money(r.total) + " to fill" + old + "</div></div>" +
+        '<a href="' + directions(s) + '" target="_blank" rel="noopener" aria-label="Directions to ' + esc(s.name) + '">Go</a>' +
+        "</li>";
+    }).join("");
+  }
+
+  function renderMap(rows) {
+    layer.clearLayers();
+    markers = {};
+    var o = state.origin;
+    L.marker([o.lat, o.lon], {
+      icon: L.divIcon({ className: "", html: '<div class="me"></div>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+      keyboard: false, interactive: false
+    }).addTo(layer);
+    rows.slice().reverse().forEach(function (r, i) {
+      var s = r.s, isBest = r === rows[0];
+      var m = L.marker([s.lat, s.lon], {
+        icon: L.divIcon({
+          className: "",
+          html: '<div class="tag' + (isBest ? " best" : "") + '">' + r.price.toFixed(1) + "</div>",
+          iconSize: [48, 24], iconAnchor: [24, 12]
+        }),
+        zIndexOffset: isBest ? 1000 : 0,
+        title: s.name
+      }).addTo(layer);
+      m.bindPopup("<strong>" + esc(s.name) + "</strong><br>" + r.price.toFixed(1) + "p · " + miles(r.d) +
+        '<br><a href="' + directions(s) + '" target="_blank" rel="noopener">Directions</a>');
+      m.on("click", function () { highlight(s.id); });
+      markers[s.id] = m;
+    });
+    var pts = [[o.lat, o.lon]].concat(rows.slice(0, 12).map(function (r) { return [r.s.lat, r.s.lon]; }));
+    if (pts.length > 1) map.fitBounds(pts, { padding: [30, 30], maxZoom: 14 });
+    else map.setView([o.lat, o.lon], 12);
+  }
+
+  function highlight(id) {
+    document.querySelectorAll(".list li.picked").forEach(function (n) { n.classList.remove("picked"); });
+    var li = el("st-" + id);
+    if (li) { li.classList.add("picked"); li.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+  }
+  function focusStation(id) {
+    var m = markers[id];
+    if (!m) return;
+    el("map").scrollIntoView({ block: "center", behavior: "smooth" });
+    map.setView(m.getLatLng(), 15);
+    m.openPopup();
+  }
+
+  function renderNotices() {
+    var html = "";
+    var hours = (Date.now() - new Date(state.data.updated).getTime()) / 36e5;
+    if (hours > STALE_HOURS) {
+      html += '<p class="notice warn">Prices were last refreshed ' + esc(ago(state.data.updated)) +
+        ". The automatic update may have stopped, so treat these as a guide only.</p>";
+    }
+    if (state.origin && state.origin.note) html += '<p class="notice">' + esc(state.origin.note) + "</p>";
+    el("notices").innerHTML = html;
+    el("updated").textContent = "Prices refreshed " + ago(state.data.updated) + ".";
+  }
+
+  function render() {
+    if (!state.data || !state.origin) return;
+    document.querySelectorAll(".fuels button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.fuel === state.fuel));
+    });
+    var rows = ranked();
+    renderTotem(rows);
+    renderList(rows);
+    renderMap(rows);
+    renderNotices();
+  }
+
+  // ---------- location ----------
+  function setOrigin(lat, lon, note) {
+    state.origin = { lat: lat, lon: lon, note: note || "" };
+    render();
+  }
+  function fallbackOrigin(reason) {
+    var c = state.data.centre;
+    setOrigin(c[0], c[1], reason + " Showing prices around the middle of the area instead. You can enter a postcode under “Your car and location”.");
+  }
+  function useGps() {
+    if (!("geolocation" in navigator)) return fallbackOrigin("This browser cannot share your location.");
+    navigator.geolocation.getCurrentPosition(
+      function (pos) { setOrigin(pos.coords.latitude, pos.coords.longitude); },
+      function () { fallbackOrigin("Location is switched off for this page."); },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+    );
+  }
+  function usePostcode() {
+    var pc = el("postcode").value.trim();
+    if (!pc) return;
+    fetch("https://api.postcodes.io/postcodes/" + encodeURIComponent(pc))
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j.status !== 200 || !j.result) throw new Error();
+        setOrigin(j.result.latitude, j.result.longitude, "Showing prices around " + j.result.postcode + ".");
+      })
+      .catch(function () {
+        el("notices").innerHTML = '<p class="notice warn">That postcode was not recognised. Check it and search again.</p>';
+      });
+  }
+
+  // ---------- controls ----------
+  document.querySelectorAll(".fuels button").forEach(function (b) {
+    b.addEventListener("click", function () { state.fuel = b.dataset.fuel; save("fuel", state.fuel); render(); });
+  });
+  el("sort").value = state.sort;
+  el("radius").value = String(state.radius);
+  el("fill").value = state.fill;
+  el("mpg").value = state.mpg;
+  el("sort").addEventListener("change", function (e) { state.sort = e.target.value; save("sort", state.sort); render(); });
+  el("radius").addEventListener("change", function (e) { state.radius = +e.target.value; save("radius", state.radius); render(); });
+  ["fill", "mpg"].forEach(function (k) {
+    el(k).addEventListener("change", function (e) {
+      var v = +e.target.value;
+      if (v > 0) { state[k] = v; save(k, v); render(); }
+    });
+  });
+  el("go-postcode").addEventListener("click", usePostcode);
+  el("postcode").addEventListener("keydown", function (e) { if (e.key === "Enter") usePostcode(); });
+  el("use-gps").addEventListener("click", useGps);
+
+  // ---------- start ----------
+  fetch("data.json", { cache: "no-store" })
+    .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+    .then(function (d) { state.data = d; useGps(); })
+    .catch(function () {
+      el("totem").innerHTML = '<p class="why">Prices could not be loaded.</p><div class="price">Refresh to try again</div>';
+    });
+})();
+</script>
+</body>
+</html>
