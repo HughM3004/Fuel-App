@@ -20,7 +20,11 @@ from datetime import datetime, timezone
 
 import requests
 
-BASE = "https://www.fuel-finder.service.gov.uk/api/v1"
+# Fuel Finder blocks requests from outside the UK, and GitHub's machines are in
+# the US, so requests go via a small Cloudflare relay (see relay/worker.js).
+BASE = (os.getenv("FUEL_FINDER_BASE") or "https://www.fuel-finder.service.gov.uk/api/v1").rstrip("/")
+RELAY_KEY = os.getenv("RELAY_KEY", "")
+EXTRA_HEADERS = {"X-Relay-Key": RELAY_KEY} if RELAY_KEY else {}
 BATCH_SIZE = 500
 TIMEOUT = 60
 FUELS = ("E10", "E5", "B7_STANDARD", "B7_PREMIUM")
@@ -49,15 +53,27 @@ def unwrap(body):
     return body
 
 
+def explain_failure(resp):
+    body = (resp.text or "")[:300].replace("\n", " ")
+    log(f"Fuel Finder replied {resp.status_code}: {body}")
+    if resp.status_code == 401 and "Relay key" in body:
+        sys.exit("The relay rejected the key. RELAY_KEY in GitHub must match RELAY_KEY in Cloudflare.")
+    if resp.status_code == 401:
+        sys.exit("Fuel Finder rejected the client ID or secret. Check the repository secrets.")
+    if resp.status_code == 403 and ("cloudfront" in body.lower() or "<html" in body.lower()):
+        sys.exit("Blocked by Fuel Finder's firewall (requests from outside the UK). Check the relay is set up.")
+    resp.raise_for_status()
+
+
 def get_token(client_id, client_secret):
     resp = requests.post(
         f"{BASE}/oauth/generate_access_token",
         json={"client_id": client_id, "client_secret": client_secret},
+        headers=EXTRA_HEADERS,
         timeout=TIMEOUT,
     )
-    if resp.status_code == 401:
-        sys.exit("Fuel Finder rejected the client ID or secret. Check the repository secrets.")
-    resp.raise_for_status()
+    if not resp.ok:
+        explain_failure(resp)
     return unwrap(resp.json())["access_token"]
 
 
@@ -66,7 +82,7 @@ def get_json(path, token, params, attempts=4):
         try:
             resp = requests.get(
                 f"{BASE}{path}",
-                headers={"Authorization": f"Bearer {token}"},
+                headers={"Authorization": f"Bearer {token}", **EXTRA_HEADERS},
                 params=params,
                 timeout=TIMEOUT,
             )
@@ -77,7 +93,8 @@ def get_json(path, token, params, attempts=4):
                 log(f"  rate limited, waiting {wait}s")
                 time.sleep(wait)
                 continue
-            resp.raise_for_status()
+            if not resp.ok:
+                explain_failure(resp)
             return unwrap(resp.json())
         except requests.RequestException as err:
             if attempt == attempts:

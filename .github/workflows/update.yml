@@ -36,6 +36,8 @@ jobs:
         env:
           FUEL_FINDER_CLIENT_ID: ${{ secrets.FUEL_FINDER_CLIENT_ID }}
           FUEL_FINDER_CLIENT_SECRET: ${{ secrets.FUEL_FINDER_CLIENT_SECRET }}
+          FUEL_FINDER_BASE: ${{ secrets.FUEL_FINDER_BASE }}
+          RELAY_KEY: ${{ secrets.RELAY_KEY }}
           # Area to cover. Set REGION_RADIUS_MILES to 0 for the whole UK.
           CENTRE_LAT: "52.1360"
           CENTRE_LON: "-0.4667"
